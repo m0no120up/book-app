@@ -1,13 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Book, BookInsert } from '@/types'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+let _client: SupabaseClient | null = null
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+function getClient(): SupabaseClient {
+  if (!_client) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key || url.startsWith('your_')) {
+      throw new Error('Supabaseの環境変数が設定されていません。.env.localを確認してください。')
+    }
+    _client = createClient(url, key)
+  }
+  return _client
+}
 
 export async function getBooks(status?: string, library?: boolean) {
-  let query = supabase.from('books').select('*').order('created_at', { ascending: false })
+  let query = getClient().from('books').select('*').order('created_at', { ascending: false })
 
   if (status === 'library') {
     query = query.eq('is_library', true)
@@ -25,18 +34,18 @@ export async function getBooks(status?: string, library?: boolean) {
 }
 
 export async function addBook(book: BookInsert) {
-  const { data, error } = await supabase.from('books').insert(book).select().single()
+  const { data, error } = await getClient().from('books').insert(book).select().single()
   if (error) throw error
   return data as Book
 }
 
 export async function updateBook(id: string, updates: Partial<BookInsert>) {
-  const { data, error } = await supabase.from('books').update(updates).eq('id', id).select().single()
+  const { data, error } = await getClient().from('books').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data as Book
 }
 
 export async function deleteBook(id: string) {
-  const { error } = await supabase.from('books').delete().eq('id', id)
+  const { error } = await getClient().from('books').delete().eq('id', id)
   if (error) throw error
 }
