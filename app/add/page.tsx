@@ -67,8 +67,9 @@ export default function AddPage() {
         setFetchError(`ISBN ${isbn} の本が見つかりませんでした。手動で入力してください。`)
         setForm(prev => ({ ...prev, isbn }))
       }
-    } catch {
-      setFetchError('本の情報取得に失敗しました。')
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '本の情報取得に失敗しました。'
+      setFetchError(`情報取得エラー: ${message}`)
     } finally {
       setFetching(false)
     }

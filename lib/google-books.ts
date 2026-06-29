@@ -9,14 +9,42 @@ export interface GoogleBooksResult {
   isbn: string
 }
 
-export async function fetchBookByISBN(isbn: string): Promise<GoogleBooksResult | null> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY
-  const url = apiKey
-    ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${apiKey}`
-    : `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+const PLACEHOLDER_KEY = 'your_google_books_api_key'
 
+function buildUrl(isbn: string): string {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY
+  const validKey = apiKey && apiKey !== PLACEHOLDER_KEY ? apiKey : null
+  const base = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+  return validKey ? `${base}&key=${validKey}` : base
+}
+
+async function parseApiError(res: Response): Promise<string> {
+  try {
+    const body = await res.json()
+    const msg = body?.error?.message
+    if (msg) return msg
+  } catch {
+    // ignore JSON parse failure
+  }
+
+  switch (res.status) {
+    case 400: return 'リクエストが不正です（ISBN形式を確認してください）'
+    case 403: return 'APIキーが無効か、利用制限に達しています'
+    case 429: return 'リクエスト数の上限に達しました。しばらく待ってから再試行してください'
+    case 500:
+    case 503: return 'Google Books APIサーバーエラーです。しばらく待ってから再試行してください'
+    default: return `APIエラー（HTTP ${res.status}）`
+  }
+}
+
+export async function fetchBookByISBN(isbn: string): Promise<GoogleBooksResult | null> {
+  const url = buildUrl(isbn)
   const res = await fetch(url)
-  if (!res.ok) return null
+
+  if (!res.ok) {
+    const message = await parseApiError(res)
+    throw new Error(message)
+  }
 
   const data = await res.json()
   if (!data.items?.length) return null
