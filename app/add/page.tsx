@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { BookStatus, STATUS_LABELS } from '@/types'
 import { addBook } from '@/lib/supabase'
-import { fetchBookByISBN } from '@/lib/google-books'
+import { fetchBookByISBN, fetchBookByTitle, GoogleBooksResult } from '@/lib/google-books'
 import BarcodeScanner from '@/components/BarcodeScanner'
 
 interface BookForm {
@@ -44,27 +44,37 @@ export default function AddPage() {
   const [saving, setSaving] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [manualIsbn, setManualIsbn] = useState('')
+  const [titleQuery, setTitleQuery] = useState('')
+  const [titleResults, setTitleResults] = useState<GoogleBooksResult[]>([])
+  const [titleSearching, setTitleSearching] = useState(false)
+
+  function applyBookResult(result: GoogleBooksResult) {
+    setForm(prev => ({
+      ...prev,
+      isbn: result.isbn,
+      title: result.title,
+      authors: result.authors.join(', '),
+      publisher: result.publisher,
+      published_date: result.published_date,
+      description: result.description,
+      thumbnail_url: result.thumbnail_url,
+      page_count: result.page_count ? String(result.page_count) : '',
+    }))
+    setTitleResults([])
+    setTitleQuery('')
+  }
 
   const handleIsbnDetected = useCallback(async (isbn: string) => {
     setScanning(false)
     setFetching(true)
     setFetchError(null)
+    setTitleResults([])
     try {
       const result = await fetchBookByISBN(isbn)
       if (result) {
-        setForm(prev => ({
-          ...prev,
-          isbn: result.isbn,
-          title: result.title,
-          authors: result.authors.join(', '),
-          publisher: result.publisher,
-          published_date: result.published_date,
-          description: result.description,
-          thumbnail_url: result.thumbnail_url,
-          page_count: result.page_count ? String(result.page_count) : '',
-        }))
+        applyBookResult(result)
       } else {
-        setFetchError(`ISBN ${isbn} の本が見つかりませんでした。手動で入力してください。`)
+        setFetchError(`ISBN ${isbn} の本が見つかりませんでした。タイトルで検索してください。`)
         setForm(prev => ({ ...prev, isbn }))
       }
     } catch (e) {
@@ -73,7 +83,23 @@ export default function AddPage() {
     } finally {
       setFetching(false)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleTitleSearch() {
+    if (!titleQuery.trim()) return
+    setTitleSearching(true)
+    setTitleResults([])
+    try {
+      const results = await fetchBookByTitle(titleQuery.trim())
+      setTitleResults(results)
+      if (!results.length) setFetchError('タイトル検索でも本が見つかりませんでした。')
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'タイトル検索に失敗しました。'
+      setFetchError(`検索エラー: ${message}`)
+    } finally {
+      setTitleSearching(false)
+    }
+  }
 
   async function handleManualIsbn() {
     if (!manualIsbn.trim()) return
@@ -158,6 +184,48 @@ export default function AddPage() {
           )}
           {fetchError && (
             <p className="text-sm text-red-600 mt-2">{fetchError}</p>
+          )}
+
+          {/* Title search fallback — shown when ISBN lookup returned no results */}
+          {fetchError && !fetching && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <p className="text-xs text-gray-500 mb-2">タイトルで検索</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={titleQuery}
+                  onChange={(e) => setTitleQuery(e.target.value)}
+                  placeholder="本のタイトルを入力..."
+                  className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && handleTitleSearch()}
+                />
+                <button
+                  onClick={handleTitleSearch}
+                  disabled={titleSearching}
+                  className="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {titleSearching ? '…' : '検索'}
+                </button>
+              </div>
+              {titleResults.length > 0 && (
+                <ul className="mt-2 border border-gray-200 rounded divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                  {titleResults.map((book, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() => applyBookResult(book)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+                      >
+                        <span className="font-medium">{book.title}</span>
+                        {book.authors.length > 0 && (
+                          <span className="text-gray-500 ml-1">— {book.authors[0]}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
 

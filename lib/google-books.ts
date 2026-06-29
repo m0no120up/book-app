@@ -11,10 +11,10 @@ export interface GoogleBooksResult {
 
 const PLACEHOLDER_KEY = 'your_google_books_api_key'
 
-function buildUrl(isbn: string): string {
+function buildUrl(query: string): string {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY
   const validKey = apiKey && apiKey !== PLACEHOLDER_KEY ? apiKey : null
-  const base = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+  const base = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}`
   return validKey ? `${base}&key=${validKey}` : base
 }
 
@@ -37,8 +37,14 @@ async function parseApiError(res: Response): Promise<string> {
   }
 }
 
-export async function fetchBookByISBN(isbn: string): Promise<GoogleBooksResult | null> {
-  const url = buildUrl(isbn)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchVolumes(query: string): Promise<any[] | null> {
+  const url = buildUrl(query)
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[GoogleBooks] fetch:', url)
+  }
+
   const res = await fetch(url)
 
   if (!res.ok) {
@@ -47,20 +53,50 @@ export async function fetchBookByISBN(isbn: string): Promise<GoogleBooksResult |
   }
 
   const data = await res.json()
-  if (!data.items?.length) return null
 
-  const info = data.items[0].volumeInfo
-  const isbn13 = info.industryIdentifiers?.find((i: { type: string }) => i.type === 'ISBN_13')?.identifier
-  const isbn10 = info.industryIdentifiers?.find((i: { type: string }) => i.type === 'ISBN_10')?.identifier
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[GoogleBooks] response:', data)
+  }
+
+  return data.items ?? null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseVolumeInfo(volumeInfo: any, fallbackIsbn: string): GoogleBooksResult {
+  const isbn13 = volumeInfo.industryIdentifiers?.find((i: { type: string }) => i.type === 'ISBN_13')?.identifier
+  const isbn10 = volumeInfo.industryIdentifiers?.find((i: { type: string }) => i.type === 'ISBN_10')?.identifier
 
   return {
-    title: info.title ?? '',
-    authors: info.authors ?? [],
-    publisher: info.publisher ?? '',
-    published_date: info.publishedDate ?? '',
-    description: info.description ?? '',
-    thumbnail_url: info.imageLinks?.thumbnail?.replace('http:', 'https:') ?? '',
-    page_count: info.pageCount ?? 0,
-    isbn: isbn13 ?? isbn10 ?? isbn,
+    title: volumeInfo.title ?? '',
+    authors: volumeInfo.authors ?? [],
+    publisher: volumeInfo.publisher ?? '',
+    published_date: volumeInfo.publishedDate ?? '',
+    description: volumeInfo.description ?? '',
+    thumbnail_url: volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:') ?? '',
+    page_count: volumeInfo.pageCount ?? 0,
+    isbn: isbn13 ?? isbn10 ?? fallbackIsbn,
   }
+}
+
+export async function fetchBookByISBN(isbn: string): Promise<GoogleBooksResult | null> {
+  // First try the isbn: prefix query
+  let items = await fetchVolumes(`isbn:${isbn}`)
+
+  // Fallback to plain keyword query (handles books not indexed with isbn: prefix)
+  if (!items?.length) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[GoogleBooks] isbn: query returned no results, retrying with plain query')
+    }
+    items = await fetchVolumes(isbn)
+  }
+
+  if (!items?.length) return null
+
+  return parseVolumeInfo(items[0].volumeInfo, isbn)
+}
+
+export async function fetchBookByTitle(title: string): Promise<GoogleBooksResult[]> {
+  const items = await fetchVolumes(title)
+  if (!items?.length) return []
+  return items.map(item => parseVolumeInfo(item.volumeInfo, ''))
 }
