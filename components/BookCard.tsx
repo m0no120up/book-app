@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Book, BookStatus, STATUS_LABELS } from '@/types'
 import StatusBadge from './StatusBadge'
 import { updateBook, deleteBook } from '@/lib/supabase'
+import LibraryChecker from './LibraryChecker'
 
 interface Props {
   book: Book
@@ -84,6 +85,18 @@ export default function BookCard({ book, onUpdate, onDelete }: Props) {
         <div className="mt-1.5">
           <StatusBadge status={book.status} isLibrary={book.is_library} />
         </div>
+
+        {book.isbn && !editing && (
+          <LibraryChecker
+            isbn={book.isbn}
+            currentIsLibrary={isLibrary}
+            onUpdateLibrary={async (val) => {
+              const updated = await updateBook(book.id, { is_library: val })
+              setIsLibrary(val)
+              onUpdate(updated)
+            }}
+          />
+        )}
 
         {book.memo && !editing && (
           <p className="text-xs text-gray-600 mt-1 italic">{book.memo}</p>

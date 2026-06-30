@@ -7,6 +7,7 @@ import { BookStatus, STATUS_LABELS } from '@/types'
 import { addBook } from '@/lib/supabase'
 import { fetchBookByISBN, fetchBookByTitle, GoogleBooksResult } from '@/lib/google-books'
 import BarcodeScanner from '@/components/BarcodeScanner'
+import LibraryChecker from '@/components/LibraryChecker'
 
 interface BookForm {
   isbn: string
@@ -287,15 +288,24 @@ export default function AddPage() {
             </select>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.is_library}
-              onChange={(e) => set('is_library', e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-gray-700">図書館にある</span>
-          </label>
+          <div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.is_library}
+                onChange={(e) => set('is_library', e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-gray-700">図書館にある</span>
+            </label>
+            {form.isbn && (
+              <LibraryChecker
+                isbn={form.isbn}
+                currentIsLibrary={form.is_library}
+                onUpdateLibrary={async (val) => { set('is_library', val) }}
+              />
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>

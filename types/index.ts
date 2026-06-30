@@ -44,3 +44,11 @@ export const STATUS_COLORS: Record<BookStatus, string> = {
   owned: 'bg-purple-100 text-purple-800',
   wanted: 'bg-orange-100 text-orange-800',
 }
+
+export interface CalilResult {
+  found: boolean
+  libkey: Record<string, string>
+  reserveurl: string | null
+  availableBranches: string[]
+  unavailableBranches: string[]
+}
