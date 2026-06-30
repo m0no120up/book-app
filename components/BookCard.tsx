@@ -86,7 +86,7 @@ export default function BookCard({ book, onUpdate, onDelete }: Props) {
           <StatusBadge status={book.status} isLibrary={book.is_library} />
         </div>
 
-        {book.isbn && !editing && (
+        {!editing && (
           <LibraryChecker
             isbn={book.isbn}
             currentIsLibrary={isLibrary}

@@ -298,13 +298,11 @@ export default function AddPage() {
               />
               <span className="text-gray-700">図書館にある</span>
             </label>
-            {form.isbn && (
-              <LibraryChecker
-                isbn={form.isbn}
-                currentIsLibrary={form.is_library}
-                onUpdateLibrary={async (val) => { set('is_library', val) }}
-              />
-            )}
+            <LibraryChecker
+              isbn={form.isbn || null}
+              currentIsLibrary={form.is_library}
+              onUpdateLibrary={async (val) => { set('is_library', val) }}
+            />
           </div>
 
           <div>

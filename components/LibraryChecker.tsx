@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { CalilResult } from '@/types'
 
 interface Props {
-  isbn: string
+  isbn?: string | null
   currentIsLibrary?: boolean
   onUpdateLibrary?: (isLibrary: boolean) => Promise<void>
 }
@@ -16,6 +16,7 @@ export default function LibraryChecker({ isbn, currentIsLibrary, onUpdateLibrary
   const [updating, setUpdating] = useState(false)
 
   async function check() {
+    if (!isbn) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -46,9 +47,18 @@ export default function LibraryChecker({ isbn, currentIsLibrary, onUpdateLibrary
     onUpdateLibrary !== undefined &&
     result.found !== currentIsLibrary
 
+  if (!isbn) {
+    return (
+      <div className="mt-1.5">
+        <span className="text-xs text-gray-400">ISBN未設定のため図書館確認不可（編集から追加できます）</span>
+      </div>
+    )
+  }
+
   return (
     <div className="mt-1.5">
       <button
+        type="button"
         onClick={check}
         disabled={loading}
         className="text-xs text-teal-600 hover:text-teal-800 disabled:opacity-50 flex items-center gap-1"
