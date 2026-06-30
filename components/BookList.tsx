@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { Book, BookStatus, STATUS_LABELS } from '@/types'
 import { getBooks } from '@/lib/supabase'
@@ -20,6 +20,7 @@ const FILTER_OPTIONS: { value: FilterStatus; label: string }[] = [
 export default function BookList() {
   const [books, setBooks] = useState<Book[]>([])
   const [filter, setFilter] = useState<FilterStatus>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,6 +41,16 @@ export default function BookList() {
 
   useEffect(() => { load() }, [load])
 
+  const filteredBooks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return books
+    return books.filter(book => {
+      const titleMatch = book.title.toLowerCase().includes(q)
+      const authorMatch = book.authors?.some(a => a.toLowerCase().includes(q)) ?? false
+      return titleMatch || authorMatch
+    })
+  }, [books, searchQuery])
+
   function handleUpdate(updated: Book) {
     setBooks(prev => prev.map(b => b.id === updated.id ? updated : b))
   }
@@ -50,6 +61,18 @@ export default function BookList() {
 
   return (
     <div>
+      {/* Search bar */}
+      <div className="relative mb-3">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="タイトル・著者名で検索"
+          className="w-full pl-8 pr-4 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
       {/* Filter tabs */}
       <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
         {FILTER_OPTIONS.map(({ value, label }) => (
@@ -69,7 +92,7 @@ export default function BookList() {
 
       {/* Book count */}
       <p className="text-sm text-gray-500 mt-3 mb-3">
-        {loading ? '読み込み中...' : `${books.length} 冊`}
+        {loading ? '読み込み中...' : `${filteredBooks.length} 冊`}
       </p>
 
       {error && (
@@ -78,21 +101,25 @@ export default function BookList() {
         </div>
       )}
 
-      {!loading && !error && books.length === 0 && (
+      {!loading && !error && filteredBooks.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📚</p>
-          <p className="text-sm">本がありません</p>
-          <Link
-            href="/add"
-            className="mt-3 inline-block text-sm text-blue-600 hover:underline"
-          >
-            本を追加する →
-          </Link>
+          <p className="text-sm">
+            {searchQuery.trim() ? '検索結果がありません' : '本がありません'}
+          </p>
+          {!searchQuery.trim() && (
+            <Link
+              href="/add"
+              className="mt-3 inline-block text-sm text-blue-600 hover:underline"
+            >
+              本を追加する →
+            </Link>
+          )}
         </div>
       )}
 
       <div className="space-y-3">
-        {books.map(book => (
+        {filteredBooks.map(book => (
           <BookCard
             key={book.id}
             book={book}
